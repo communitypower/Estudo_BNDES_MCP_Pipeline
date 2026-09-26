@@ -1,0 +1,28 @@
+{
+  "name": "bndes-naval-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Servidor MCP para o estudo BNDES de Descarbonização da Indústria Naval (Edital FEP 01/2025)",
+  "workspaces": [
+    "packages/db",
+    "packages/mcp"
+  ],
+  "scripts": {
+    "dev": "cross-env TRANSPORT=stdio tsx packages/mcp/src/server.ts",
+    "dev:http": "cross-env TRANSPORT=http tsx packages/mcp/src/server.ts",
+    "start": "npm run dev",
+    "start:http": "npm run dev:http",
+    "ingest": "tsx packages/mcp/scripts/ingest.ts",
+    "ingest:seed": "tsx packages/mcp/scripts/ingest.ts --seed-only",
+    "db:push": "drizzle-kit push --config packages/db/drizzle.config.ts",
+    "db:studio": "drizzle-kit studio --config packages/db/drizzle.config.ts",
+    "build": "tsc -b packages/db packages/mcp",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0",
+    "drizzle-kit": "^0.20.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}

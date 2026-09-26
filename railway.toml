@@ -1,0 +1,21 @@
+[build]
+builder = "NIXPACKS"
+buildCommand = "npm install && npm run build"
+
+[deploy]
+startCommand = "TRANSPORT=http node --loader tsx/esm packages/mcp/src/server.ts"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "bndes-naval-mcp"
+
+[services.variables]
+TRANSPORT    = "http"
+PORT         = "3100"
+NODE_ENV     = "production"
+
+
+# DATABASE_URL e VOYAGE_API_KEY definidos via Railway Variables (não commitar)

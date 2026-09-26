@@ -1,0 +1,14 @@
+{
+  "on_http_request": [
+    {
+      "actions": [
+        {
+          "type": "oauth",
+          "config": {
+            "provider": "google"
+          }
+        }
+      ]
+    }
+  ]
+}

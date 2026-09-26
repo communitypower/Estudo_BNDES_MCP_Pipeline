@@ -1,0 +1,19 @@
+{
+  "name": "@bndes/db",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".":          "./src/client.ts",
+    "./schema":   "./src/schema/index.ts",
+    "./seed":     "./src/seed/catalog.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.30.0",
+    "pg":          "^8.11.0"
+  },
+  "devDependencies": {
+    "@types/pg":   "^8.11.0",
+    "typescript":  "^5.4.0"
+  }
+}
