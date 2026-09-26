@@ -1,21 +1,22 @@
+# Serviço bndes-naval-mcp (Railway, config-as-code)
+#
+# Variáveis a definir no serviço (Railway → Variables; não commitar):
+#   DATABASE_URL    Postgres COM pgvector (template "pgvector" do Railway)
+#   VOYAGE_API_KEY  embeddings voyage-large-2 (sem ela, embeddings aleatórios — só dev)
+#   MCP_AUTH_TOKEN  token exigido em /mcp (openssl rand -hex 32)
+# PORT é injetada pelo Railway.
+#
+# Banco (uma vez, e após mudanças de schema), a partir de uma máquina com acesso ao DATABASE_URL:
+#   npm run db:setup   # habilita pgvector e cria as tabelas
+#   npm run ingest     # catálogo, estaleiros, chunks + embeddings e índice HNSW
+
 [build]
 builder = "NIXPACKS"
-buildCommand = "npm install && npm run build"
+buildCommand = "npm ci"
 
 [deploy]
-startCommand = "TRANSPORT=http node --loader tsx/esm packages/mcp/src/server.ts"
+startCommand = "TRANSPORT=http npx tsx packages/mcp/src/server.ts"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
-
-[[services]]
-name = "bndes-naval-mcp"
-
-[services.variables]
-TRANSPORT    = "http"
-PORT         = "3100"
-NODE_ENV     = "production"
-
-
-# DATABASE_URL, VOYAGE_API_KEY e MCP_AUTH_TOKEN definidos via Railway Variables (não commitar)

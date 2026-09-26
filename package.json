@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "description": "Servidor MCP para o estudo BNDES de Descarbonização da Indústria Naval (Edital FEP 01/2025)",
+  "engines": {
+    "node": ">=20"
+  },
   "workspaces": [
     "packages/db",
     "packages/mcp"
@@ -14,7 +17,8 @@
     "start:http": "npm run dev:http",
     "ingest": "tsx packages/mcp/scripts/ingest.ts",
     "ingest:seed": "tsx packages/mcp/scripts/ingest.ts --seed-only",
-    "db:push": "drizzle-kit push --config packages/db/drizzle.config.ts",
+    "db:setup": "tsx packages/db/scripts/setup.ts",
+    "db:push": "drizzle-kit push:pg --config packages/db/drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config packages/db/drizzle.config.ts",
     "build": "tsc -b packages/db packages/mcp",
     "typecheck": "tsc -b --noEmit"

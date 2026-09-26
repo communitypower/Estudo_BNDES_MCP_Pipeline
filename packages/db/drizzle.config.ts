@@ -8,5 +8,6 @@ export default {
     connectionString: process.env.DATABASE_URL ?? "postgresql://postgres:senha@localhost:5432/bndes_naval",
   },
   verbose: true,
-  strict: true,
+  // strict=false: sem prompt interativo de confirmação, para rodar em CI/Railway.
+  strict: false,
 } satisfies Config;
