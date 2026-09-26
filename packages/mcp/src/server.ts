@@ -16,16 +16,47 @@
  *   TRANSPORT=http   npx tsx src/server.ts   # Railway / produção
  */
 
-import { McpServer }                           from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, ResourceTemplate }         from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport }                 from "@modelcontextprotocol/sdk/server/stdio.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { Hono }                                from "hono";
 import { serve }                               from "@hono/node-server";
+import { existsSync, readFileSync }         from "node:fs";
+import { resolve, sep }                     from "node:path";
+import { timingSafeEqual }                  from "node:crypto";
 import "dotenv/config";
 
 import { searchCorpusTool }        from "./tools/search.js";
 import { getShipyardProfileTool }  from "./tools/shipyard.js";
 import { crossReferenceTool, generateCitationTool } from "./tools/verify-cite.js";
+
+// ─── documentos do corpus ────────────────────────────────────────────────────
+
+const DOC_ALIASES: Record<string, string[]> = {
+  "coppe-v1":           ["volume1-tomo-I_rev.md"],
+  "coppe-v2":           ["volume1-tomo-II_rev.md"],
+  "coppe-v3":           ["volume2-tomoi-revfinal.md"],
+  "coppe-v4":           ["volume4-revfinal.md"],
+  "geipot-sobena-1999": ["GEIPOT-MARINHA_MERCANTE-SOBENA.md"],
+  "geipot-fgv-1999":    ["GEIPPOT-MARINHA_MERCANTE-FGV.md"],
+  "benchmarking-2007":  ["Benchmarking-COPPE-RelatorioFinal_-_Copia.md"],
+  "ipea-2014":          ["COPPE-ZERO_-_Copia.md"],
+  "bndes-poli-27664":   ["POLI_27664_Proposta_BNDES_PROF_FLORIANO_CARLOS_MARTINS_PIRES_1_assinado_-_Copia.md"],
+};
+
+/**
+ * Resolve o arquivo .md de um doc_id (nome direto ou alias do catálogo).
+ * Aceita apenas identificadores simples, garantindo que o caminho final
+ * permaneça dentro de DOCS_PATH (sem "../").
+ */
+function resolveDocPath(docId: string): string | null {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(docId) || docId.includes("..")) return null;
+
+  const docsPath = resolve(process.env.DOCS_PATH ?? "./docs");
+  const candidates = [`${docId}.md`, ...(DOC_ALIASES[docId] ?? [])].map((file) => resolve(docsPath, file));
+
+  return candidates.find((file) => file.startsWith(docsPath + sep) && existsSync(file)) ?? null;
+}
 
 // ─── criação do servidor MCP ────────────────────────────────────────────────
 
@@ -99,51 +130,41 @@ function createServer() {
   );
 
   // ─── resources: documentos do corpus acessíveis diretamente ──────────────
+  //
+  // Registrado como ResourceTemplate: com uma string simples o SDK trata
+  // "bndes://docs/{doc_id}" como URI literal e nenhum documento é encontrado.
 
   server.resource(
     "bndes-doc",
-    "bndes://docs/{doc_id}",
-    async (uri) => {
-      const docId = uri.pathname.replace("/docs/", "");
-      const { readFileSync, existsSync } = await import("fs");
-      const { join } = await import("path");
-
-      const docsPath = process.env.DOCS_PATH ?? "./docs";
-      const candidates = [join(docsPath, `${docId}.md`)];
-
-      const aliases: Record<string, string[]> = {
-        "coppe-v1": ["volume1-tomo-I_rev.md"],
-        "coppe-v2": ["volume1-tomo-II_rev.md"],
-        "coppe-v3": ["volume2-tomoi-revfinal.md"],
-        "coppe-v4": ["volume4-revfinal.md"],
-        "geipot-sobena-1999": ["GEIPOT-MARINHA_MERCANTE-SOBENA.md"],
-        "geipot-fgv-1999": ["GEIPPOT-MARINHA_MERCANTE-FGV.md"],
-        "benchmarking-2007": ["Benchmarking-COPPE-RelatorioFinal_-_Copia.md"],
-        "ipea-2014": ["COPPE-ZERO_-_Copia.md"],
-        "bndes-poli-27664": ["POLI_27664_Proposta_BNDES_PROF_FLORIANO_CARLOS_MARTINS_PIRES_1_assinado_-_Copia.md"],
-      };
-
-      for (const alias of aliases[docId] ?? []) {
-        candidates.push(join(docsPath, alias));
-      }
-
-      const filePath = candidates.find((candidate) => existsSync(candidate));
+    new ResourceTemplate("bndes://docs/{doc_id}", {
+      list: async () => ({
+        resources: Object.keys(DOC_ALIASES)
+          .filter((docId) => resolveDocPath(docId) !== null)
+          .map((docId) => ({
+            uri:      `bndes://docs/${docId}`,
+            name:     docId,
+            mimeType: "text/markdown",
+          })),
+      }),
+    }),
+    async (uri, { doc_id }) => {
+      const docId = String(Array.isArray(doc_id) ? doc_id[0] : doc_id);
+      const filePath = resolveDocPath(docId);
 
       if (!filePath) {
         return {
           contents: [{
             uri:      uri.href,
-            text:     `Documento \"${docId}\" não encontrado em ${docsPath}`,
+            text:     `Documento "${docId}" não encontrado.`,
             mimeType: "text/plain",
           }],
         };
       }
 
-      const content = readFileSync(filePath, "utf-8");
       return {
         contents: [{
           uri:      uri.href,
-          text:     content,
+          text:     readFileSync(filePath, "utf-8"),
           mimeType: "text/markdown",
         }],
       };
@@ -208,6 +229,24 @@ if (TRANSPORT === "http") {
   app.get("/health", (c) =>
     c.json({ status: "ok", server: "bndes-naval-mcp", version: "1.0.0" })
   );
+
+  // Autenticação opcional: com MCP_AUTH_TOKEN definido, /mcp exige
+  // "Authorization: Bearer <token>". /health permanece aberto para o Railway.
+  const authToken = process.env.MCP_AUTH_TOKEN ?? "";
+  if (!authToken) {
+    console.warn("⚠ MCP_AUTH_TOKEN não definido — /mcp está aberto sem autenticação.");
+  }
+
+  app.use("/mcp", async (c, next) => {
+    if (!authToken) return next();
+    const header   = c.req.header("authorization") ?? "";
+    const provided = Buffer.from(header.replace(/^Bearer\s+/i, ""));
+    const expected = Buffer.from(authToken);
+    if (provided.length !== expected.length || !timingSafeEqual(provided, expected)) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
+    return next();
+  });
 
   app.all("/mcp", async (c) => {
     const transport = new WebStandardStreamableHTTPServerTransport();

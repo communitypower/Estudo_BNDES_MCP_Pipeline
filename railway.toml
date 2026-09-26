@@ -18,4 +18,4 @@ PORT         = "3100"
 NODE_ENV     = "production"
 
 
-# DATABASE_URL e VOYAGE_API_KEY definidos via Railway Variables (não commitar)
+# DATABASE_URL, VOYAGE_API_KEY e MCP_AUTH_TOKEN definidos via Railway Variables (não commitar)
